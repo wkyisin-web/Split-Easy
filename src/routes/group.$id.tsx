@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
+  Pencil,
   ScanLine,
   Loader2,
   Check,
@@ -225,6 +226,7 @@ function ExpensesTab({
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("1");
   const [scanOpen, setScanOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ExpenseItem | null>(null);
 
   const addItem = () => {
     const p = parseFloat(price);
@@ -317,6 +319,13 @@ function ExpensesTab({
                 </div>
                 <div className="text-sm font-semibold">{formatMoney(itemTotal(item))}</div>
                 <button
+                  onClick={() => setEditingItem(item)}
+                  className="text-muted-foreground hover:text-primary p-1"
+                  aria-label="Edit"
+                >
+                  <Pencil className="size-4" />
+                </button>
+                <button
                   onClick={() =>
                     updateBill((b) => ({ ...b, items: b.items.filter((x) => x.id !== item.id) }))
                   }
@@ -372,7 +381,84 @@ function ExpensesTab({
       </Button>
 
       <ScanDialog open={scanOpen} onOpenChange={setScanOpen} onAdd={mergeScanned} />
+
+      {editingItem && (
+        <EditItemDialog
+          item={editingItem}
+          onSave={(updated) => {
+            updateBill((b) => ({
+              ...b,
+              items: b.items.map((x) => (x.id === updated.id ? updated : x)),
+            }));
+            setEditingItem(null);
+          }}
+          onOpenChange={(v) => { if (!v) setEditingItem(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+function EditItemDialog({
+  item,
+  onSave,
+  onOpenChange,
+}: {
+  item: ExpenseItem;
+  onSave: (updated: ExpenseItem) => void;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [name, setName] = useState(item.name);
+  const [price, setPrice] = useState(String(item.price));
+  const [qty, setQty] = useState(String(item.quantity));
+
+  const save = () => {
+    const p = parseFloat(price);
+    const q = Math.max(1, parseInt(qty || "1", 10));
+    if (!name.trim() || !isFinite(p) || p <= 0) {
+      toast.error("Enter a valid name and price");
+      return;
+    }
+    onSave({ ...item, name: name.trim(), price: p, quantity: q });
+  };
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit item</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Input
+            placeholder="Item name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <Input
+              className="col-span-2"
+              type="number"
+              inputMode="decimal"
+              placeholder="Price ฿"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="Qty"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

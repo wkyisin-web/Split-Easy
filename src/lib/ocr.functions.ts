@@ -64,7 +64,7 @@ Return ONLY a JSON object of shape {"items":[{"name":string,"price":number,"quan
 - "price" is the unit price in the receipt currency, as a number (no symbols).
 - "quantity" defaults to 1 if not shown.
 - IGNORE subtotals, service charges, VAT, taxes, tips, totals, change, and payment lines.
-- Item names should be concise (no SKU codes).
+- Item names should be concise (no SKU codes) and translated to English.
 If you cannot read the receipt, return {"items":[]}.`;
 
     // Validate the image is a data URL
@@ -81,7 +81,7 @@ If you cannot read the receipt, return {"items":[]}.`;
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gemini-3.5-flash",
+          model: "google/gemini-2.5-flash",
           temperature: 0,
           messages: [
             {
@@ -131,12 +131,19 @@ If you cannot read the receipt, return {"items":[]}.`;
         : messageContent?.find((part) => part.type === "output_text")?.text ??
           messageContent?.[0]?.text) ??
       "{}";
+    // Strip markdown code fences if the model wrapped the JSON
+    const stripped = textContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    const cleanJson = (s: string) => s.replace(/,\s*([\]}])/g, "$1");
     let parsed: { items?: unknown };
     try {
-      parsed = JSON.parse(textContent);
+      parsed = JSON.parse(cleanJson(stripped));
     } catch {
-      const m = textContent.match(/\{[\s\S]*\}/);
-      parsed = m ? JSON.parse(m[0]) : { items: [] };
+      const m = stripped.match(/\{[\s\S]*\}/);
+      try {
+        parsed = m ? JSON.parse(cleanJson(m[0])) : { items: [] };
+      } catch {
+        parsed = { items: [] };
+      }
     }
     const items: OcrItem[] = Array.isArray(parsed.items)
       ? parsed.items
